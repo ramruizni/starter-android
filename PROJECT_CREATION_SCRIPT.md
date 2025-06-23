@@ -21,8 +21,8 @@ The script will:
 #!/bin/bash
 
 # Android Project Creation Script
-# Usage: ./create-android-project.sh <project-name> <package-name> [base-directory]
-# Example: ./create-android-project.sh MyAwesomeApp com.mycompany.myapp /path/to/projects
+# Usage: ./create-android-project.sh <project-name> <base-package> <app-package> [base-directory]
+# Example: ./create-android-project.sh MyAwesomeApp com.mycompany myapp /path/to/projects
 
 set -e  # Exit on any error
 
@@ -35,18 +35,35 @@ NC='\033[0m' # No Color
 
 # Configuration
 PROJECT_NAME="$1"
-PACKAGE_NAME="$2"
-BASE_DIR="${3:-$(pwd)}"
+BASE_PACKAGE="$2"
+APP_PACKAGE="$3"
+BASE_DIR="${4:-$(pwd)}"
 TEMPLATE_DIR="$(dirname "$0")/templates"
 
 # Validate inputs
-if [ -z "$PROJECT_NAME" ] || [ -z "$PACKAGE_NAME" ]; then
-    echo -e "${RED}Usage: $0 <project-name> <package-name> [base-directory]${NC}"
-    echo -e "${YELLOW}Example: $0 MyAwesomeApp com.mycompany.myapp${NC}"
+if [ -z "$PROJECT_NAME" ] || [ -z "$BASE_PACKAGE" ] || [ -z "$APP_PACKAGE" ]; then
+    echo -e "${RED}Usage: $0 <project-name> <base-package> <app-package> [base-directory]${NC}"
+    echo -e "${YELLOW}Example: $0 MyAwesomeApp com.mycompany myapp${NC}"
+    echo -e "${YELLOW}Example: $0 DazzleApp com.lumilabs dazzle${NC}"
     exit 1
 fi
 
-# Validate package name format
+# Derive full package name
+PACKAGE_NAME="$BASE_PACKAGE.$APP_PACKAGE"
+
+# Validate base package format
+if ! [[ $BASE_PACKAGE =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]; then
+    echo -e "${RED}Error: Base package must be valid Java package format (e.g., com.mycompany)${NC}"
+    exit 1
+fi
+
+# Validate app package format
+if ! [[ $APP_PACKAGE =~ ^[a-z][a-z0-9_]*$ ]]; then
+    echo -e "${RED}Error: App package must be valid Java identifier (e.g., myapp)${NC}"
+    exit 1
+fi
+
+# Validate combined package name format
 if ! [[ $PACKAGE_NAME =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]]; then
     echo -e "${RED}Error: Invalid package name format. Use lowercase with dots (e.g., com.company.app)${NC}"
     exit 1
@@ -169,6 +186,8 @@ copy_and_customize_templates() {
     find "$PROJECT_DIR" -type f \( -name "*.kt" -o -name "*.kts" -o -name "*.xml" -o -name "*.toml" -o -name "*.pro" -o -name "*.properties" \) -exec sed -i.bak \
         -e "s/PROJECT_NAME/$PROJECT_NAME/g" \
         -e "s/PACKAGE_NAME/$PACKAGE_NAME/g" \
+        -e "s/BASE_PACKAGE/$BASE_PACKAGE/g" \
+        -e "s/APP_PACKAGE/$APP_PACKAGE/g" \
         -e "s|PACKAGE_PATH|$PACKAGE_PATH|g" \
         {} \;
     
@@ -663,10 +682,10 @@ Copy all template files from the `TEMPLATE_FILES_COLLECTION.md` into the `templa
 
 ```bash
 # Create new project
-./create-android-project.sh MyAwesomeApp com.mycompany.myapp
+./create-android-project.sh MyAwesomeApp com.mycompany myapp
 
 # Or specify custom directory
-./create-android-project.sh MyAwesomeApp com.mycompany.myapp /path/to/projects
+./create-android-project.sh MyAwesomeApp com.mycompany myapp /path/to/projects
 ```
 
 ### 4. Validate Project

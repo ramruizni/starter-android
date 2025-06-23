@@ -257,6 +257,10 @@ plugins {
 
 ### `gradle.properties`
 ```properties
+# Project Configuration
+basePackage=BASE_PACKAGE
+appPackage=APP_PACKAGE
+
 # Gradle
 org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 org.gradle.caching=true

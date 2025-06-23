@@ -6,6 +6,36 @@ This guide provides complete implementation details for all convention plugins u
 
 Convention plugins standardize build configurations across modules, reducing duplication and ensuring consistency. Each plugin encapsulates specific functionality and can be composed with others.
 
+## ⚠️ Critical Fixes Applied
+
+Based on real-world project creation issues, this guide includes essential fixes that prevent common build failures:
+
+1. **Automatic Namespace Configuration**: Convention plugins auto-generate valid namespaces using configurable base and app packages
+2. **Proper BOM Dependencies**: Compose BOM is correctly wrapped with `platform()` calls
+3. **Circular Dependency Prevention**: Architecture plugins avoid navigation dependencies that create build cycles
+4. **Professional Package Structure**: Uses base package (com.company) + app package (appname) for proper enterprise naming
+
+## Package Configuration
+
+Before using these convention plugins, configure your project's package structure in `gradle.properties`:
+
+```properties
+# gradle.properties
+basePackage=com.lumilabs
+appPackage=dazzle
+```
+
+**Examples**:
+- **Dazzle Project**: `basePackage=com.lumilabs`, `appPackage=dazzle` → `com.lumilabs.dazzle.*`
+- **Pokedex Project**: `basePackage=com.company`, `appPackage=pokedex` → `com.company.pokedex.*`
+- **Enterprise Project**: `basePackage=com.mycompany`, `appPackage=myapp` → `com.mycompany.myapp.*`
+
+This creates professional package hierarchies:
+- App module: `com.lumilabs.dazzle`
+- Navigation: `com.lumilabs.dazzle.navigation`  
+- Features: `com.lumilabs.dazzle.features.home.view`
+- UI modules: `com.lumilabs.dazzle.ui.design_system`
+
 ## Plugin Architecture
 
 ### Core Principles
@@ -297,6 +327,7 @@ import com.myproject.convention.ProjectConfig
 import com.myproject.convention.configureBuildTypes
 import com.myproject.convention.configureKotlinAndroid
 import com.myproject.convention.libs
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -312,6 +343,9 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
 
             extensions.configure<ApplicationExtension> {
                 configureKotlinAndroid(this)
+                
+                // CRITICAL: Set namespace for application
+                namespace = getNamespaceFromProjectPath(target)
 
                 defaultConfig {
                     targetSdk = ProjectConfig.TARGET_SDK
@@ -338,6 +372,31 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
         }
     }
 }
+
+/**
+ * Generates namespace from project path with proper package structure
+ * Expects gradle.properties to define:
+ * - basePackage=com.company (e.g., com.lumilabs)
+ * - appPackage=appname (e.g., dazzle)
+ */
+private fun getNamespaceFromProjectPath(project: Project): String {
+    val basePackage = project.findProperty("basePackage") as? String 
+        ?: throw GradleException("basePackage property must be defined in gradle.properties (e.g., basePackage=com.company)")
+    
+    val appPackage = project.findProperty("appPackage") as? String
+        ?: throw GradleException("appPackage property must be defined in gradle.properties (e.g., appPackage=myapp)")
+    
+    val projectPath = project.path.removePrefix(":").replace(":", ".")
+    
+    // Replace hyphens with underscores to create valid Java package names
+    val validPath = projectPath.replace("-", "_")
+    
+    return if (validPath.isEmpty()) {
+        "$basePackage.$appPackage"
+    } else {
+        "$basePackage.$appPackage.$validPath"
+    }
+}
 ```
 
 ### Create `AndroidLibraryConventionPlugin.kt`
@@ -347,6 +406,7 @@ import com.android.build.gradle.LibraryExtension
 import com.myproject.convention.ProjectConfig
 import com.myproject.convention.configureKotlinAndroid
 import com.myproject.convention.libs
+import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -362,6 +422,10 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 
             extensions.configure<LibraryExtension> {
                 configureKotlinAndroid(this)
+                
+                // CRITICAL: Set namespace for library modules
+                namespace = getNamespaceFromProjectPath(target)
+                
                 defaultConfig.targetSdk = ProjectConfig.TARGET_SDK
             }
 
@@ -369,6 +433,31 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
                 add("implementation", libs.findLibrary("androidx.core.ktx").get())
             }
         }
+    }
+}
+
+/**
+ * Generates namespace from project path with proper package structure
+ * Expects gradle.properties to define:
+ * - basePackage=com.company (e.g., com.lumilabs)
+ * - appPackage=appname (e.g., dazzle)
+ */
+private fun getNamespaceFromProjectPath(project: Project): String {
+    val basePackage = project.findProperty("basePackage") as? String 
+        ?: throw GradleException("basePackage property must be defined in gradle.properties (e.g., basePackage=com.company)")
+    
+    val appPackage = project.findProperty("appPackage") as? String
+        ?: throw GradleException("appPackage property must be defined in gradle.properties (e.g., appPackage=myapp)")
+    
+    val projectPath = project.path.removePrefix(":").replace(":", ".")
+    
+    // Replace hyphens with underscores to create valid Java package names
+    val validPath = projectPath.replace("-", "_")
+    
+    return if (validPath.isEmpty()) {
+        "$basePackage.$appPackage"
+    } else {
+        "$basePackage.$appPackage.$validPath"
     }
 }
 ```
@@ -524,11 +613,15 @@ class ArchViewConventionPlugin : Plugin<Project> {
                 add("debugImplementation", libs.findLibrary("androidx.ui.test.manifest").get())
 
                 // Common UI modules
-                add("implementation", project(":ui:components"))
+                add("implementation", project(":ui:composable"))
                 add("implementation", project(":ui:design-system"))
+                add("implementation", project(":ui:icons"))
                 
-                // Navigation
-                add("implementation", project(":core:navigation"))
+                // Core domain and viewmodel
+                add("implementation", project(":core:viewmodel"))
+                
+                // IMPORTANT: NO navigation dependency here to avoid circular dependencies
+                // Navigation module will import feature views instead
             }
         }
     }
